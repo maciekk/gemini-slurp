@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Export Gemini conversation history from a Google Takeout ZIP or directory to Obsidian Markdown files.")
     parser.add_argument("takeout_path", nargs="?", default=os.path.expanduser("~/Downloads/Takeout"),
                         help="Path to the Takeout ZIP file or unpacked directory (default: ~/Downloads/Takeout)")
-    parser.add_argument("--obsidian-inbox", default="/path/to/your/Obsidian/Vault/Gemini_Sync",
-                        help="Path to the Obsidian vault output directory")
+    parser.add_argument("--obsidian-chat-path", default=os.path.expanduser("~/Documents/Personal/chats/Gemini"),
+                        help="Directory where Gemini chat Markdown files will be written (default: ~/Documents/Personal/chats/Gemini)")
     args = parser.parse_args()
-    extract_and_parse(args.takeout_path, args.obsidian_inbox)
+    extract_and_parse(args.takeout_path, args.obsidian_chat_path)
