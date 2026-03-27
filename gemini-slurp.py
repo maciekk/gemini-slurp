@@ -103,12 +103,9 @@ def parse_activity_cards(html_content):
         if not timestamp:
             continue
 
-        # Strip the standard footer
-        response_html = re.split(
-            r"<br>\s*(?:&emsp;|&nbsp;|\s)*Gemini Apps\s*<br>",
-            response_raw,
-            maxsplit=1,
-        )[0].strip()
+        # Strip the standard footer ("Products: / Gemini Apps / Why is this here?")
+        # which lives in a separate caption div after the response content.
+        response_html = re.split(r"<b>Products:</b>", response_raw, maxsplit=1)[0].strip()
 
         cards.append({
             "prompt": prompt,

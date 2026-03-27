@@ -30,7 +30,7 @@ def _make_card_html(prompt, timestamp, response_html="<p>Response.</p>"):
         f'<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">'
         f'Prompted\xa0{prompt}<br>{timestamp}<br>'
         f'{response_html}'
-        f'<br>&emsp;Gemini Apps<br><b>Why is this here?</b><br>'
+        f'<b>Products:</b><br>&emsp;Gemini Apps<br><b>Why is this here?</b><br>'
         f'&emsp;This activity was saved to your Google Account.</div>'
         f'</div></div>'
     )
@@ -45,7 +45,7 @@ def _make_non_prompted_card(action, timestamp):
         f'<p class="mdl-typography--title">Gemini Apps<br></p></div>'
         f'<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">'
         f'{action}<br>{timestamp}<br>'
-        f'<br>&emsp;Gemini Apps<br><b>Why is this here?</b></div>'
+        f'<b>Products:</b><br>&emsp;Gemini Apps<br><b>Why is this here?</b></div>'
         f'</div></div>'
     )
 
