@@ -1,28 +1,36 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import os
 import re
 import zipfile
 
-# --- Configuration ---
-TAKEOUT_ZIP = "./Downloads/takeout-xxxxxxxx.zip" 
-OBSIDIAN_INBOX = "/path/to/your/Obsidian/Vault/Gemini_Sync"
+def find_json_data(takeout_path):
+    """Load MyActivity.json from either a Takeout ZIP or an unpacked directory."""
+    if os.path.isdir(takeout_path):
+        for root, _, files in os.walk(takeout_path):
+            for fname in files:
+                if fname == "MyActivity.json" and "Gemini" in root:
+                    with open(os.path.join(root, fname), encoding='utf-8') as f:
+                        return json.load(f)
+    else:
+        with zipfile.ZipFile(takeout_path, 'r') as z:
+            for filename in z.namelist():
+                if filename.endswith("MyActivity.json") and "Gemini" in filename:
+                    with z.open(filename) as f:
+                        return json.load(f)
+    return None
 
-def extract_and_parse(zip_path, output_dir):
+
+def extract_and_parse(takeout_path, output_dir):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # 1. Extract the specific JSON from the Takeout Zip
-    json_data = None
-    with zipfile.ZipFile(zip_path, 'r') as z:
-        for filename in z.namelist():
-            if filename.endswith("MyActivity.json") and "Gemini" in filename:
-                with z.open(filename) as f:
-                    json_data = json.load(f)
-                break
+    # 1. Extract the specific JSON from the Takeout ZIP or directory
+    json_data = find_json_data(takeout_path)
 
     if not json_data:
-        print("Could not find Gemini JSON in the provided Takeout zip.")
+        print("Could not find Gemini MyActivity.json in the provided Takeout path.")
         return
 
     # 2. Group scattered activity items into full conversations
@@ -80,4 +88,10 @@ status: active
     print(f"Sync complete. Processed {len(conversations)} conversations into Obsidian.")
 
 if __name__ == "__main__":
-    extract_and_parse(TAKEOUT_ZIP, OBSIDIAN_INBOX)
+    parser = argparse.ArgumentParser(description="Export Gemini conversation history from a Google Takeout ZIP or directory to Obsidian Markdown files.")
+    parser.add_argument("takeout_path", nargs="?", default=os.path.expanduser("~/Downloads/Takeout"),
+                        help="Path to the Takeout ZIP file or unpacked directory (default: ~/Downloads/Takeout)")
+    parser.add_argument("--obsidian-inbox", default="/path/to/your/Obsidian/Vault/Gemini_Sync",
+                        help="Path to the Obsidian vault output directory")
+    args = parser.parse_args()
+    extract_and_parse(args.takeout_path, args.obsidian_inbox)
