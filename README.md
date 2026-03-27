@@ -1,72 +1,10 @@
 # gemini-slurp
 
-Exports your full Gemini conversation history (prompts and responses) into Obsidian-friendly Markdown files.
+Exports your Gemini conversation history (prompts + responses) from a Google Takeout archive into Obsidian-friendly Markdown files.
 
-Uses the [gemini-webapi](https://github.com/HanaokaYuzu/Gemini-API) library to pull conversations directly from the Gemini web app via your browser cookies — no manual export step required.
+No external dependencies — uses only the Python standard library.
 
-## Prerequisites
-
-1. **Be logged in** to [gemini.google.com](https://gemini.google.com) in your browser
-2. Install the dependency:
-   ```bash
-   pip install "gemini-webapi[browser]"
-   ```
-   The `[browser]` extra enables automatic cookie import from your local browser session.
-
-## Usage
-
-```bash
-python gemini-slurp.py [--obsidian-chat-path PATH] [--max-chats N] [--max-turns N]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--obsidian-chat-path` | `~/Documents/Personal/chats/Gemini` | Directory where Markdown files are written |
-| `--max-chats` | `1000` | Maximum number of conversations to fetch |
-| `--max-turns` | `1000` | Maximum turns per conversation |
-
-**Examples:**
-
-```bash
-# Export everything with defaults
-python gemini-slurp.py
-
-# Custom output location
-python gemini-slurp.py --obsidian-chat-path ~/Vault/chats/Gemini
-
-# Quick test with a few chats
-python gemini-slurp.py --max-chats 5
-```
-
-## Output format
-
-Each conversation becomes a Markdown file named `<title>_<chat_id>.md` with YAML frontmatter:
-
-```markdown
----
-gemini_id: c_abc123
-title: "My conversation"
-last_updated: 2026-03-27T12:00:00
-pinned: false
----
-# My conversation
-
-**You:**
-What is the meaning of life?
-
----
-
-**Gemini:**
-The meaning of life is...
-
----
-```
-
-Files are overwritten on each run, so re-running pulls in any new messages.
-
-## Alternative: Google Takeout
-
-If you prefer an official Google export (metadata only — titles and timestamps, not full conversation content):
+## Getting a Takeout export
 
 1. Go to [takeout.google.com](https://takeout.google.com)
 2. Click **Deselect All**
@@ -75,6 +13,90 @@ If you prefer an official Google export (metadata only — titles and timestamps
 5. In the dialog, click **Deselect All**, then check **Gemini Apps** only, and confirm
 6. Proceed through the export wizard
 
-Google will email you when the archive is ready. You can also set up a **periodic export** (every 2 months for up to a year) so fresh archives arrive automatically.
+Google will email you when the archive is ready. You can also set up a **periodic export** (every 2 months for up to a year) so fresh archives land in your inbox automatically.
 
-Note: Takeout only provides activity metadata, not full conversation content. That's why this tool uses the web API instead.
+Once downloaded, the archive may auto-unpack to `~/Downloads/Takeout` (macOS default), or you can point the script at the ZIP directly.
+
+## Usage
+
+```bash
+python gemini-slurp.py [takeout_path] [--obsidian-chat-path PATH] [--gap-minutes N] [--force]
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `takeout_path` | `~/Downloads/Takeout` | Path to the Takeout ZIP or auto-unpacked directory |
+| `--obsidian-chat-path` | `~/Documents/Personal/chats/Gemini` | Directory where Markdown files are written |
+| `--gap-minutes` | `60` | Silence gap (in minutes) that starts a new conversation |
+| `--force` | off | Overwrite files even if manually edited |
+
+**Examples:**
+
+```bash
+# Use all defaults
+python gemini-slurp.py
+
+# Explicit ZIP
+python gemini-slurp.py ~/Downloads/takeout-20260401.zip
+
+# Tighter grouping — 30 min gap instead of 60
+python gemini-slurp.py --gap-minutes 30
+```
+
+## Output format
+
+Each conversation becomes a Markdown file named `<YYYYMMDD_HHMM>_<prompt_slug>.md`:
+
+```markdown
+---
+first_turn: 2026-03-27T12:00:00
+last_turn: 2026-03-27T12:45:00
+turn_count: 3
+sync_hash: a1b2c3d4e5f6g7h8
+---
+# What might be some interesting coding projects for 3D printing
+
+**You** (2026-03-27 12:00:00):
+What might be some interesting coding projects for 3D printing?
+
+---
+
+**Gemini:**
+Congrats on the Bambu Lab P2S! Here are a few ideas...
+
+---
+```
+
+## Conversation grouping
+
+The Takeout export contains individual prompt-response turns with no explicit conversation boundaries. The script groups turns into conversations by time proximity: a gap larger than `--gap-minutes` (default 60) starts a new file.
+
+This works well for the common case. If you occasionally return to an old chat hours or days later, that follow-up will appear as a separate conversation rather than appending to the original — an inherent limitation of the Takeout format.
+
+## Manual edit protection
+
+Each file contains a `sync_hash` in its frontmatter — a hash of the file content. On subsequent runs, if the hash doesn't match (i.e. you've edited the file), the script skips it and prints `SKIP (manually edited)`. Use `--force` to override.
+
+## Approaches considered
+
+Three approaches were evaluated before settling on the current one:
+
+### 1. Google Takeout — JSON (rejected)
+
+Early Takeout exports included a `MyActivity.json` file. This was the original approach in this repo. Google has since switched to HTML-only exports, so this no longer works.
+
+### 2. `gemini-webapi` reverse-engineered API (rejected)
+
+[HanaokaYuzu/Gemini-API](https://github.com/HanaokaYuzu/Gemini-API) reverse-engineers the Gemini web app's internal RPC endpoints. It can call `read_chat(cid)` to fetch full conversation content given a chat ID.
+
+**Pros:** Full content, proper conversation boundaries (no grouping heuristics needed), no Takeout step.
+
+**Cons:** The `LIST_CHATS` RPC (`MaZiqc`) consistently returned null during testing — making it impossible to enumerate conversations without knowing their IDs in advance. Even if it worked, reverse-engineered APIs are fragile and can break silently when Google changes their internals. Also adds an external async dependency (`gemini-webapi`, `orjson`, `curl_cffi`).
+
+### 3. Google Takeout — HTML (current approach)
+
+The current `MyActivity.html` format contains full prompt and response text inside each activity card. Parsing is done with regex (rather than an HTML parser) because the file contains unclosed tags that confuse depth-tracking parsers.
+
+**Pros:** Full content, no external dependencies, official Google export, works offline.
+
+**Cons:** No explicit conversation boundaries — grouping is heuristic (time-gap based). Turns from revisited old chats may not group correctly. Requires periodic manual Takeout downloads (though Google's periodic export feature mitigates this).
