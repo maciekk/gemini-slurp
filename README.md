@@ -3,17 +3,56 @@
 Ah... Google Gemini. Nails the fancy stuff (esp. AI), but forgets the
 basics, like allowing you to organize your zillion Gemini chats. Sigh.
 
-This tool exports your Gemini chats (prompts + responses) into
-Obsidian-friendly Markdown files in your vault, via Takeout.
+Two tools for exporting your Gemini chats (prompts + responses) into
+Obsidian-friendly Markdown files in your vault:
 
-Benefits:
-- mostly works<sup>1</sup>
-- no extra dependencies
+| Tool | Source | Conversation boundaries |
+|---|---|---|
+| `gemini-slurp.py` | Google Takeout archive | Heuristic (time-gap) |
+| `gemini-slurp-browser.py` | Browser userscript capture | Exact (real IDs) |
+
+Benefits of both:
+- no extra dependencies (pure Python stdlib)
 - Obsidian has better search anyways
 - even better, can run `black-oracle` on this content
 
-1. weak point: there are no Chat IDs in the takeout, you need to use
-   heuristics to thread them back together into discrete chats.
+## Browser userscript approach (recommended)
+
+Captures conversations directly from the Gemini web app with real
+conversation IDs and titles — no heuristic grouping needed.
+
+### Setup (one time)
+
+1. Install [Userscripts](https://apps.apple.com/us/app/userscripts/id1463298887)
+   from the App Store (Safari) or Tampermonkey (Chrome/Firefox)
+2. Add `gemini-export-extension/gemini-slurp.user.js` to your
+   userscript manager
+3. Reload gemini.google.com — you should see a blue **⬇ Export (0)**
+   button in the bottom-right corner
+
+### Capturing conversations
+
+1. Open gemini.google.com
+2. Click each conversation you want to export in the sidebar (one click
+   per chat — no need to scroll within it; the full conversation is
+   fetched immediately)
+3. Click **⬇ Export** — downloads a JSON file to `~/Downloads/`
+4. Run the parser:
+
+```bash
+python gemini-slurp-browser.py ~/Downloads/gemini-slurp-<timestamp>.json
+```
+
+Each conversation becomes its own `.md` file, named after its Gemini
+title. The capture does not persist across page reloads — export before
+navigating away.
+
+---
+
+## Takeout approach
+
+Covers all historical activity in one export but groups turns into
+conversations heuristically (time-gap based).
 
 ## Getting a Takeout export
 
@@ -32,7 +71,7 @@ land in your inbox automatically.
 Once downloaded, the archive may auto-unpack to `~/Downloads/Takeout`
 (macOS default), or you can point the script at the ZIP directly.
 
-## Usage
+## Takeout usage
 
 ```bash
 python gemini-slurp.py [takeout_path] [--obsidian-chat-path PATH] \
@@ -105,7 +144,7 @@ edited)`. Use `--force` to override.
 
 ## Approaches considered
 
-Three approaches were evaluated before settling on the current one:
+Four approaches were evaluated:
 
 ### 1. Google Takeout — JSON (rejected)
 
@@ -143,3 +182,26 @@ works offline.
 (time-gap based). Turns from revisited old chats may not group correctly.
 Requires periodic manual Takeout downloads (though Google's periodic
 export feature mitigates this).
+
+### 4. Browser userscript (current approach)
+
+A Safari/Chrome/Firefox userscript (`gemini-slurp.user.js`) intercepts
+the Gemini web app's internal RPC calls by monkey-patching `window.fetch`
+and `XMLHttpRequest`. Two RPCs are captured:
+
+- **`MaZiqc`** (LIST_CHATS) — returns a paginated list of all
+  conversations with IDs, titles, and timestamps. This RPC was returning
+  null when called from the reverse-engineered `gemini-webapi` library
+  but works correctly with a real browser session (real cookies).
+- **`hNvQHb`** (LOAD_CONVERSATION) — returns all turns of a conversation
+  in a single response when you click to open it.
+
+`gemini-slurp-browser.py` parses the exported JSON using
+`json.JSONDecoder.raw_decode()` to handle Google's batchexecute wire
+format (length-prefixed streaming JSON chunks).
+
+**Pros:** Real conversation IDs and titles; no heuristic grouping; full
+turn content; no Takeout step; no external dependencies.
+
+**Cons:** Requires manually clicking each conversation to capture it.
+Captures live in browser memory and are lost on page reload.

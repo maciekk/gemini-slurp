@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Slurp",
+  "version": "0.1",
+  "description": "Intercept and export Gemini conversations to JSON",
+  "permissions": ["downloads"],
+  "host_permissions": ["https://gemini.google.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["interceptor.js"],
+      "matches": ["https://gemini.google.com/*"]
+    }
+  ]
+}
