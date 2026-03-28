@@ -146,9 +146,15 @@ def parse_conv_turns(captures):
         turn[3]  [[[cand_id, [resp_text], ...]]]  — model candidates
         ...      [unix_sec, nanos]              — timestamp (position varies)
 
+    Long conversations are paginated: Gemini fires a new hNvQHb each
+    time the user scrolls up to load older turns. All pages for the
+    same conv_id are merged and deduplicated by response_id (turn[1][1]).
+
     Returns dict: conv_id -> [{"timestamp", "user", "response"}, ...]
     """
-    convs = {}
+    # conv_id -> {response_id -> turn_dict}  (dedup by response_id)
+    convs: dict[str, dict] = {}
+
     for cap in captures:
         if not cap.get("raw") or "hNvQHb" not in cap.get("url", ""):
             continue
@@ -159,14 +165,16 @@ def parse_conv_turns(captures):
         if not raw_turns:
             continue
 
-        conv_id = None
-        turns = []
         for turn in raw_turns:
-            # Conversation ID lives at turn[0][0]
+            # Conversation ID at turn[0][0], response ID at turn[1][1]
             try:
                 conv_id = turn[0][0]
             except (IndexError, TypeError):
-                pass
+                continue
+            try:
+                response_id = turn[1][1]
+            except (IndexError, TypeError):
+                response_id = None
 
             # User text: turn[2][0] is a list of strings (usually one)
             try:
@@ -182,17 +190,21 @@ def parse_conv_turns(captures):
             except (IndexError, TypeError):
                 resp_text = ""
 
-            turns.append({
+            turn_dict = {
                 "timestamp": _turn_timestamp(turn),
                 "user": user_text,
                 "response": resp_text,
-            })
+            }
 
-        if conv_id and turns:
-            turns.sort(key=lambda t: t["timestamp"] or datetime.min)
-            convs[conv_id] = turns
+            page = convs.setdefault(conv_id, {})
+            # response_id is the dedup key; last write wins (idempotent)
+            page[response_id] = turn_dict
 
-    return convs
+    # Flatten, sort chronologically
+    return {
+        conv_id: sorted(page.values(), key=lambda t: t["timestamp"] or datetime.min)
+        for conv_id, page in convs.items()
+    }
 
 
 # ---------------------------------------------------------------------------
