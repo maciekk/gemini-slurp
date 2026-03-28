@@ -34,8 +34,9 @@ conversation IDs and titles — no heuristic grouping needed.
 
 1. Open gemini.google.com
 2. Click each conversation you want to export in the sidebar (one click
-   per chat — no need to scroll within it; the full conversation is
-   fetched immediately)
+   per chat — the full conversation is fetched immediately for short
+   chats; for long ones, scroll to the top of the chat to load all
+   pages before moving on)
 3. Click **⬇ Export** — downloads a JSON file to `~/Downloads/`
 4. Run the parser:
 
