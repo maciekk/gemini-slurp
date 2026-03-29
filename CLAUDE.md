@@ -110,8 +110,7 @@ Output filename format: `<YYYYMMDD_HHMM>_<title_slug>.md`
 ## Tests
 
 ```bash
-pip install pytest
-python -m pytest test_gemini_slurp.py -v
+uv run pytest test_gemini_slurp.py -v
 ```
 
 49 tests covering: timestamp parsing, HTML card parsing,
